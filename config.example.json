@@ -1,0 +1,129 @@
+{
+  "database": "parking.db",
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8100,
+    "panel_password": "",
+    "allow_simulate": false
+  },
+  "tariff": {
+    "free_minutes": 15,
+    "hour_price": 50,
+    "first_period_hours": 24,
+    "day_price": 300
+  },
+  "parking": {
+    "dedupe_seconds": 10,
+    "reentry_window_seconds": 120,
+    "paid_grace_minutes": 15,
+    "fuzzy_exit_match": true,
+    "whitelist_free_on_main": true,
+    "unknown_message_seconds": 20
+  },
+  "whitelist": {
+    "admin_login": "admin",
+    "admin_password_sha256": "6051fc84a7a0d74c225fb18a496b09952da5642e60723ecae543298edd7d82d6",
+    "site_host": "0.0.0.0",
+    "site_port": 8101
+  },
+  "telegram": {
+    "enabled": true,
+    "token": "ТОКЕН_БОТА",
+    "notify_chat_ids": [],
+    "notify_blacklist": true
+  },
+  "cameras": [
+    {
+      "name": "Въезд",
+      "role": "enter",
+      "host": "192.168.0.14",
+      "port": 80,
+      "username": "admin",
+      "password": "admin123",
+      "channel": 1,
+      "enabled": true
+    },
+    {
+      "name": "Выезд",
+      "role": "exit",
+      "host": "192.168.0.2",
+      "port": 80,
+      "username": "admin",
+      "password": "admin123",
+      "channel": 1,
+      "enabled": true
+    },
+    {
+      "name": "Въезд WL",
+      "role": "wl_enter",
+      "host": "192.168.0.4",
+      "port": 80,
+      "username": "admin",
+      "password": "admin123",
+      "channel": 1,
+      "enabled": true
+    },
+    {
+      "name": "Выезд WL",
+      "role": "wl_exit",
+      "host": "192.168.0.90",
+      "port": 80,
+      "username": "admin",
+      "password": "admin123",
+      "channel": 1,
+      "enabled": true,
+      "open_on_plate": false
+    }
+  ],
+  "camera_api": {
+    "events_path": "/cgi-bin/eventManager.cgi?action=attach&codes=[TrafficJunction]&heartbeat=5",
+    "open_path": "/cgi-bin/trafficSnap.cgi?action=openStrobe&channel={channel}&info.openType=Normal&info.plateNumber={plate}",
+    "event_codes": [
+      "TrafficJunction",
+      "TrafficManualSnap"
+    ],
+    "read_timeout": 30,
+    "snap_path": "/cgi-bin/trafficSnap.cgi?action=manSnap&channel={channel}"
+  },
+  "megapay": {
+    "enabled": true,
+    "base": "https://app1.megacom.kg:9090/site-api",
+    "login": "karavella_qr",
+    "password": "ПАРОЛЬ_MEGAPAY",
+    "service_id": 6533,
+    "generate_path": "/qr/united/generate/v2",
+    "status_path": "",
+    "status_method": "GET",
+    "destination": "",
+    "comment": "Парковка Акжол {plate}",
+    "image_size": 512,
+    "poll_seconds": 3,
+    "timeout_seconds": 300,
+    "verify_ssl": true,
+    "callback_secret": ""
+  },
+  "kkm": {
+    "enabled": true,
+    "url": "http://77.220.204.134:9995",
+    "registration_number": "0000000000024532",
+    "cashier_name": "Парковка Акжол",
+    "item_name": "Услуги парковки",
+    "item_with_plate": true,
+    "calc_type": 1,
+    "vat_num": 0,
+    "st_num": 0,
+    "unit": "усл",
+    "bottom_text": "Спасибо! Счастливого пути!",
+    "close_day_time": "23:59",
+    "timeout": 60,
+    "card_via_kkm": false,
+    "card_timeout": 180,
+    "max_attempts": 0,
+    "terminal_auto": false
+  },
+  "screen": {
+    "scale_x": 1.78,
+    "qr_height_percent": 68,
+    "paid_seconds": 15
+  }
+}

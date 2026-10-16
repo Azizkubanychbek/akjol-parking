@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Парковка Акжол</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg: #f4f5f7; --card: #fff; --text: #1d1f23; --muted: #6b7280; --line: #e3e5e8;
+    --ok: #15803d; --bad: #b91c1c; --warn: #b45309; --acc: #1d4ed8; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system, "Segoe UI", Arial, sans-serif; }
+  header { background: #111827; color: #fff; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  header h1 { font-size: 18px; margin: 0 12px 0 0; }
+  .chip { padding: 3px 8px; border-radius: 10px; font-size: 12px; background: #374151; }
+  .chip.on { background: var(--ok); } .chip.off { background: var(--bad); }
+  main { padding: 16px; max-width: 1300px; margin: 0 auto; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-bottom: 16px; }
+  .card h2 { font-size: 15px; margin: 0 0 10px; }
+  .banner { padding: 10px 14px; border-radius: 8px; margin-bottom: 12px; background: #fef3c7; color: #78350f; border: 1px solid #fcd34d; }
+  .banner.bad { background: #fee2e2; color: #7f1d1d; border-color: #fca5a5; }
+  button { font: inherit; padding: 7px 12px; border-radius: 6px; border: 1px solid var(--line); background: #fff; cursor: pointer; margin: 2px; }
+  button.p { background: var(--acc); color: #fff; border-color: var(--acc); }
+  button.g { background: var(--ok); color: #fff; border-color: var(--ok); }
+  button.r { background: var(--bad); color: #fff; border-color: var(--bad); }
+  button:disabled { opacity: .5; }
+  input, textarea, select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+  .tabs button.active { background: #111827; color: #fff; border-color: #111827; }
+  .pay { border: 2px solid var(--acc); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+  .pay .amt { font-size: 28px; font-weight: bold; }
+  .muted { color: var(--muted); } .okc { color: var(--ok); } .badc { color: var(--bad); } .warnc { color: var(--warn); }
+  .big { font-size: 24px; font-weight: bold; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
+  .scroll { max-height: 520px; overflow: auto; }
+  .hidden { display: none; }
+  @media (max-width: 600px) { main { padding: 8px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Парковка «Акжол»</h1>
+  <span id="clock" class="muted"></span>
+  <span id="cams"></span>
+</header>
+<main>
+  <div id="banners"></div>
+  <div class="grid">
+    <div class="card">
+      <h2>Выезд — оплата</h2>
+      <div class="row">
+        <select id="ex-cam"></select>
+        <input id="ex-plate" placeholder="Номер" size="12" style="font-size:20px;font-weight:bold;text-transform:uppercase">
+        <button onclick="snap()">📷 Запросить с камеры</button>
+      </div>
+      <div class="row">
+        <input id="ex-amount" type="number" min="0" placeholder="Сумма (только если нет въезда)" style="width:240px">
+        <button class="p" onclick="bill()">QR — выставить оплату</button>
+      </div>
+      <div class="muted" id="ex-hint" style="margin-bottom:8px"></div>
+      <div id="current"><span class="muted">Нет ожидающих оплат</span></div>
+      <div id="unknown"></div>
+    </div>
+    <div class="card">
+      <h2>Сегодня</h2>
+      <div id="today"></div>
+      <h2 style="margin-top:14px">Шлагбаумы</h2>
+      <div id="barriers"></div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button data-tab="inside" class="active">На парковке</button>
+    <button data-tab="payments">Оплаты</button>
+    <button data-tab="events">Журнал</button>
+    <button data-tab="whitelist">Белый список</button>
+    <button data-tab="blacklist">Чёрный список</button>
+    <button data-tab="kkm">Касса (ККМ)</button>
+    <button data-tab="tools">Тариф и тест</button>
+  </div>
+
+  <section class="card tab" id="tab-inside">
+    <div class="row">
+      <input id="ins-filter" placeholder="Поиск номера">
+      <span class="muted">Добавить заезд вручную:</span>
+      <input id="add-plate" placeholder="Номер" size="10">
+      <input id="add-time" type="datetime-local" step="60">
+      <button onclick="addSession()">Добавить</button>
+    </div>
+    <div class="scroll"><table id="inside"></table></div>
+  </section>
+
+  <section class="card tab hidden" id="tab-payments">
+    <div class="row"><input id="pay-day" type="date"><button onclick="loadPayments()">Показать</button></div>
+    <div id="pay-report"></div>
+    <div class="scroll"><table id="payments"></table></div>
+  </section>
+
+  <section class="card tab hidden" id="tab-events">
+    <div class="row"><input id="ev-plate" placeholder="Номер (необязательно)"><button onclick="loadEvents()">Обновить</button></div>
+    <div class="scroll"><table id="events"></table></div>
+  </section>
+
+  <section class="card tab hidden" id="tab-whitelist">
+    <p class="muted">Добавить или удалить номер — через Telegram-бота или сайт белого списка.</p>
+    <div class="scroll"><table id="whitelist"></table></div>
+  </section>
+
+  <section class="card tab hidden" id="tab-blacklist">
+    <div class="row">
+      <input id="bl-plate" placeholder="Номер" size="12"><input id="bl-reason" placeholder="Причина" size="30">
+      <button class="r" onclick="blAdd()">Добавить в чёрный список</button>
+    </div>
+    <p class="muted">Машину из чёрного списка шлагбаум въезда не пропускает, в панели появляется предупреждение.</p>
+    <div class="scroll"><table id="blacklist"></table></div>
+  </section>
+
+  <section class="card tab hidden" id="tab-kkm">
+    <div class="row">
+      <button onclick="kkm('state')">Состояние ККМ</button>
+      <button onclick="kkm('open_day')">Открыть смену</button>
+      <button class="r" onclick="if(confirm('Закрыть смену (Z-отчёт)?'))kkm('close_day')">Закрыть смену (Z)</button>
+      <button onclick="kkm('x_report')">X-отчёт</button>
+      <button onclick="kkm('print_last_document')">Копия последнего чека</button>
+      <button onclick="kkm('print_last_z')">Копия последнего Z</button>
+    </div>
+    <div class="row">
+      <input id="kkm-amount" type="number" min="0" step="0.01" placeholder="Сумма">
+      <button onclick="kkm('deposit',{amount:val('kkm-amount')})">Внесение</button>
+      <button onclick="kkm('withdrawal',{amount:val('kkm-amount')})">Изъятие</button>
+    </div>
+    <pre id="kkm-out" class="scroll" style="background:#f8fafc;padding:8px;border-radius:6px;white-space:pre-wrap"></pre>
+  </section>
+
+  <section class="card tab hidden" id="tab-tools">
+    <h2>Калькулятор тарифа</h2>
+    <div class="row">Стоял <input id="t-h" type="number" value="1" min="0" style="width:70px"> ч
+      <input id="t-m" type="number" value="16" min="0" style="width:70px"> мин
+      <button onclick="calc()">Посчитать</button> <span id="t-out" class="big"></span></div>
+    <p class="muted" id="t-rule"></p>
+    <h2>Тест без камеры</h2>
+    <div class="row"><select id="sim-cam"></select><input id="sim-plate" placeholder="Номер" size="10">
+      <button onclick="simulate()">Как будто камера распознала</button></div>
+    <p class="muted">Внимание: на реальной системе это откроет настоящий шлагбаум.</p>
+  </section>
+</main>
+
+<script>
+var S = {};
+function $(id) { return document.getElementById(id); }
+function val(id) { return $(id).value.trim(); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+  return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function api(path, data, method) {
+  var opt = { method: method || (data ? 'POST' : 'GET'), headers: { 'Content-Type': 'application/json' } };
+  if (data) opt.body = JSON.stringify(data);
+  return fetch(path, opt).then(function (r) {
+    return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; });
+  });
+}
+function act(path, data, msg) {
+  if (msg && !confirm(msg)) return Promise.resolve();
+  return api(path, data).then(refresh).catch(function (e) { alert('Ошибка: ' + e.message); });
+}
+var METHOD = { qr: 'QR Megapay', cash: 'Наличные', card: 'Карта', card_kkm: 'Карта (ККМ)' };
+var REASON = { paid: 'оплачено', free: 'бесплатно', whitelist: 'whitelist', operator: 'оператор без оплаты',
+  manual: 'закрыт вручную', reentry: 'новый въезд без выезда' };
+
+function refresh() {
+  return api('/api/state').then(function (s) {
+    S = s;
+    $('clock').textContent = s.now;
+    $('cams').innerHTML = s.cameras.map(function (c) {
+      return '<span class="chip ' + (c.enabled === false ? '' : c.connected ? 'on' : 'off') + '" title="' +
+        esc(c.enabled === false ? 'выключена в настройках' : c.host + ' ' + (c.last_error || '')) + '">' +
+        esc(c.name) + (c.last_plate ? ' · ' + esc(c.last_plate) : '') + '</span>';
+    }).join(' ');
+    var b = '';
+    if (!s.megapay_status_check) b += '<div class="banner bad">Проверка статуса QR Megapay не настроена (megapay.status_path в config.json) — оплату по QR программа сама не увидит. Подтверждайте оплату кнопкой.</div>';
+    s.alerts.forEach(function (a) {
+      b += '<div class="banner bad"><b>⛔ ' + esc(a.plate) + '</b> из чёрного списка у шлагбаума «' + esc(a.camera) + '» (' + esc(a.time) + ')' +
+        (a.reason ? ' — ' + esc(a.reason) : '') + ' <button onclick="act(\'/api/barrier/open\',{camera:\'' + esc(a.camera) + '\',plate:\'' + esc(a.plate) +
+        '\'},\'Всё равно открыть?\')">Открыть всё равно</button><button onclick="act(\'/api/alert/dismiss\',{id:' + a.id + '})">Скрыть</button></div>';
+    });
+    if (s.tg_outbox) b += '<div class="banner">Нет связи с Telegram — ' + s.tg_outbox + ' уведомл. ждут отправки.</div>';
+    if (s.receipt_problems) b += '<div class="banner">Есть чеки, которые не удалось пробить в ККМ: ' + s.receipt_problems + ' — вкладка «Оплаты».</div>';
+    $('banners').innerHTML = b;
+
+    $('current').innerHTML = s.current.length ? s.current.map(function (p) {
+      return '<div class="pay"><div class="row"><span class="amt">' + p.amount + ' сом</span>' +
+        '<span><b>' + esc(p.plate) + '</b> · ' + esc(p.duration) + ' · ' + esc(p.camera) + '</span></div>' +
+        (p.qr_error ? '<div class="badc">QR: ' + esc(p.qr_error) + '</div>' : '') +
+        '<div class="row">' +
+        '<button class="g" onclick="act(\'/api/payment/cash\',{id:' + p.id + '},\'Получены наличные ' + p.amount + ' сом?\')">Наличные</button>' +
+        '<button class="g" onclick="act(\'/api/payment/card\',{id:' + p.id + '},\'Оплачено картой на терминале ' + p.amount + ' сом?\')">Карта (терминал)</button>' +
+        (s.card_via_kkm ? '<button class="g" onclick="act(\'/api/payment/card_kkm\',{id:' + p.id + '},\'Провести ' + p.amount + ' сом картой через ККМ?\')">Карта через ККМ</button>' : '') +
+        '<button class="g" onclick="act(\'/api/payment/qr\',{id:' + p.id + '},\'Оплата по QR пришла (проверили в приложении Megapay)?\')">QR оплачен</button>' +
+        '<button onclick="act(\'/api/payment/free\',{id:' + p.id + '},\'Выпустить без оплаты?\')">Выпустить бесплатно</button>' +
+        '<button class="r" onclick="act(\'/api/payment/cancel\',{id:' + p.id + '})">Отменить</button></div></div>';
+    }).join('') : '<span class="muted">Нет ожидающих оплат</span>';
+
+    $('unknown').innerHTML = s.unknown.map(function (u) {
+      return '<div class="pay" style="border-color:var(--warn)"><b class="warnc">' + esc(u.plate) +
+        '</b> — нет записи о въезде (' + esc(u.time) + '). Проверьте номер выше или укажите сумму и нажмите «QR».' +
+        '<div class="row"><button onclick="act(\'/api/barrier/open\',{camera:\'' + esc(u.camera) + '\',release_unknown:1},\'Открыть бесплатно?\')">Открыть бесплатно</button></div></div>';
+    }).join('');
+    prefill(s);
+
+    var t = s.today;
+    $('today').innerHTML = '<div class="big">' + t.total + ' сом</div><div class="muted">въездов ' + t.entries +
+      ', выездов ' + t.exits + ', сейчас на парковке ' + s.inside + '</div><div>' +
+      Object.keys(t.by_method).map(function (m) { return esc(METHOD[m] || m) + ': ' + t.by_method[m].total + ' (' + t.by_method[m].count + ')'; }).join(' · ') + '</div>';
+    $('barriers').innerHTML = s.cameras.map(function (c) {
+      return '<button onclick="act(\'/api/barrier/open\',{camera:\'' + esc(c.name) + '\'},\'Открыть шлагбаум «' + esc(c.name) + '»?\')">Открыть: ' + esc(c.name) + '</button>';
+    }).join('');
+    if (!$('ex-cam').options.length) $('ex-cam').innerHTML = s.cameras.filter(function (c) { return c.role === 'exit'; })
+      .map(function (c) { return '<option>' + esc(c.name) + '</option>'; }).join('');
+    if (!$('sim-cam').options.length) $('sim-cam').innerHTML = s.cameras.map(function (c) { return '<option>' + esc(c.name) + '</option>'; }).join('');
+  }).catch(function (e) { $('clock').textContent = 'нет связи с программой: ' + e.message; });
+}
+
+var suggested = '';
+function prefill(s) {
+  // подставляем номер с камеры / из текущей оплаты, если оператор сейчас не редактирует поле
+  var cam = $('ex-cam').value, el = $('ex-plate');
+  var cur = s.current.filter(function (p) { return p.camera === cam && p.status === 'pending'; })[0];
+  var unk = s.unknown.filter(function (u) { return u.camera === cam; })[0];
+  var c = s.cameras.filter(function (x) { return x.name === cam; })[0];
+  var plate = cur ? cur.plate : unk ? unk.plate : c && c.last_plate ? c.last_plate : '';
+  $('ex-hint').textContent = c && c.last_plate ? 'Камера прочитала: ' + c.last_plate + ' (' + (c.last_plate_time || '') + ')' : '';
+  if (document.activeElement !== el && (el.value === '' || el.value === suggested) && plate) { el.value = plate; }
+  suggested = plate || suggested;
+}
+function snap() {
+  api('/api/camera/snap', { camera: $('ex-cam').value }).then(function () {
+    $('ex-plate').value = ''; suggested = ''; $('ex-hint').textContent = 'Камера распознаёт…';
+    setTimeout(refresh, 1500);
+  }).catch(function (e) { alert('Ошибка: ' + e.message); });
+}
+function bill() {
+  var plate = val('ex-plate').toUpperCase();
+  if (!plate) return alert('Введите номер');
+  api('/api/exit/bill', { camera: $('ex-cam').value, plate: plate, amount: val('ex-amount') }).then(function (r) {
+    $('ex-amount').value = ''; suggested = plate;
+    if (r.free) alert('Бесплатно — шлагбаум открыт');
+    refresh();
+  }).catch(function (e) { alert(e.message); });
+}
+function editPlate(id, old) {
+  var p = prompt('Правильный номер вместо ' + old + ':', old);
+  if (p && p !== old) act('/api/session/plate', { id: id, plate: p }).then(loadInside);
+}
+function loadBl() {
+  api('/api/blacklist').then(function (rows) {
+    $('blacklist').innerHTML = '<tr><th>Номер (' + rows.length + ')</th><th>Причина</th><th>Добавлен</th><th></th></tr>' +
+      rows.map(function (r) {
+        return '<tr><td><b>' + esc(r.plate) + '</b></td><td>' + esc(r.reason) + '</td><td class="muted">' + esc(r.created) +
+          '</td><td><button data-p="' + esc(r.plate) + '" onclick="blDel(this.dataset.p)">Удалить</button></td></tr>';
+      }).join('');
+  });
+}
+function blAdd() {
+  api('/api/blacklist', { plate: val('bl-plate'), reason: val('bl-reason') }).then(function () {
+    $('bl-plate').value = ''; $('bl-reason').value = ''; loadBl(); }).catch(function (e) { alert(e.message); });
+}
+function blDel(p) { if (confirm('Убрать ' + p + ' из чёрного списка?')) api('/api/blacklist?plate=' + encodeURIComponent(p), {}, 'DELETE').then(loadBl); }
+function loadInside() {
+  api('/api/sessions?status=open').then(function (rows) {
+    var f = val('ins-filter').toUpperCase();
+    rows = rows.filter(function (r) { return !f || r.plate.indexOf(f) >= 0; });
+    $('inside').innerHTML = '<tr><th>Номер</th><th>Въезд</th><th>Стоит</th><th>К оплате сейчас</th><th>Оплачено</th><th></th></tr>' +
+      rows.map(function (r) {
+        return '<tr><td><b>' + esc(r.plate) + '</b>' + (r.note ? ' <span class="muted">' + esc(r.note) + '</span>' : '') + '</td><td>' + esc(r.entry_time) +
+          '</td><td>' + esc(r.duration) + '</td><td>' + r.fee_now + '</td><td>' + (r.paid_total || '') +
+          '</td><td><button onclick="editPlate(' + r.id + ',\'' + esc(r.plate) + '\')">Исправить номер</button>' +
+          '<button onclick="act(\'/api/session/close\',{id:' + r.id + '},\'Закрыть заезд ' + esc(r.plate) + ' без оплаты?\').then(loadInside)">Закрыть</button></td></tr>';
+      }).join('');
+  });
+}
+function addSession() {
+  var t = val('add-time');
+  act('/api/session/add', { plate: val('add-plate'), entry_time: t ? t.replace('T', ' ') + ':00' : '' }).then(loadInside);
+}
+var RS = { done: '<span class="okc">пробит</span>', pending: '<span class="warnc">в очереди</span>',
+  failed: '<span class="badc">ошибка</span>', skipped: 'ККМ выкл.', none: '' };
+function loadPayments() {
+  var d = val('pay-day');
+  api('/api/report?day=' + d).then(function (t) {
+    $('pay-report').innerHTML = '<p><b>' + t.total + ' сом</b> · ' + Object.keys(t.by_method).map(function (m) {
+      return esc(METHOD[m] || m) + ': ' + t.by_method[m].total; }).join(' · ') + '</p>';
+  });
+  api('/api/payments?day=' + d).then(function (rows) {
+    $('payments').innerHTML = '<tr><th>#</th><th>Время</th><th>Номер</th><th>Сумма</th><th>Статус</th><th>Способ</th><th>Чек</th></tr>' +
+      rows.map(function (p) {
+        return '<tr><td>' + p.id + '</td><td>' + esc(p.paid_time || p.created) + '</td><td>' + esc(p.plate) + '</td><td>' + p.amount +
+          '</td><td>' + esc(p.status) + '</td><td>' + esc(METHOD[p.method] || '') + '</td><td>' + (RS[p.receipt_status] || '') +
+          (p.receipt_fd ? ' ФД ' + p.receipt_fd : '') + (p.receipt_error ? '<div class="muted">' + esc(p.receipt_error) + '</div>' : '') +
+          (p.status === 'success' && (p.receipt_status === 'failed' || p.receipt_status === 'pending') ? ' <button onclick="act(\'/api/payment/receipt\',{id:' + p.id + '}).then(loadPayments)">Пробить</button>' : '') +
+          '</td></tr>';
+      }).join('');
+  });
+}
+function loadEvents() {
+  var p = val('ev-plate');
+  api('/api/events' + (p ? '?plate=' + encodeURIComponent(p) : '')).then(function (rows) {
+    $('events').innerHTML = rows.map(function (e) {
+      var c = e.kind === 'error' || e.kind === 'denied' ? 'badc' : e.kind === 'alert' ? 'warnc' : '';
+      return '<tr><td class="muted">' + esc(e.ts) + '</td><td>' + esc(e.camera || '') + '</td><td class="' + c + '">' + esc(e.message) + '</td></tr>';
+    }).join('');
+  });
+}
+function loadWl() {
+  api('/api/whitelist').then(function (rows) {
+    $('whitelist').innerHTML = '<tr><th>Номер (' + rows.length + ')</th><th>Срок</th><th>Кто добавил</th><th>Когда</th></tr>' +
+      rows.map(function (r) {
+        return '<tr><td><b>' + esc(r.plate) + '</b></td><td>' + (r.category === 'month' ? 'до ' + esc(r.expires) : 'постоянный') +
+          (r.active ? '' : ' <span class="badc">истёк</span>') + '</td><td>' + esc(r.added_by) + ' <span class="muted">' + esc(r.source) +
+          '</span></td><td class="muted">' + esc(r.created) + '</td></tr>';
+      }).join('');
+  });
+}
+function kkm(a, data) {
+  $('kkm-out').textContent = 'Выполняется…';
+  api('/api/kkm/' + a, data || {}).then(function (r) { $('kkm-out').textContent = JSON.stringify(r, null, 2); })
+    .catch(function (e) { $('kkm-out').textContent = 'Ошибка: ' + e.message; });
+}
+function calc() {
+  var m = (+val('t-h') || 0) * 60 + (+val('t-m') || 0);
+  api('/api/tariff?minutes=' + m).then(function (r) {
+    $('t-out').textContent = r.fee + ' сом';
+    var t = r.tariff;
+    $('t-rule').textContent = 'Первые ' + (t.free_minutes || 15) + ' мин бесплатно, затем ' + (t.hour_price || 50) +
+      ' сом за каждый начатый час; после ' + (t.first_period_hours || 24) + ' ч — ' + (t.day_price || 300) + ' сом за каждые начатые сутки.';
+  });
+}
+function simulate() { act('/api/simulate', { camera: $('sim-cam').value, plate: val('sim-plate') }, 'Отправить номер в программу?'); }
+
+var loaders = { inside: loadInside, payments: loadPayments, events: loadEvents, whitelist: loadWl, blacklist: loadBl, tools: calc };
+var curTab = 'inside';
+document.querySelectorAll('.tabs button').forEach(function (b) {
+  b.onclick = function () {
+    document.querySelectorAll('.tabs button').forEach(function (x) { x.classList.remove('active'); });
+    b.classList.add('active');
+    document.querySelectorAll('.tab').forEach(function (x) { x.classList.add('hidden'); });
+    curTab = b.dataset.tab;
+    $('tab-' + curTab).classList.remove('hidden');
+    if (loaders[curTab]) loaders[curTab]();
+  };
+});
+$('ins-filter').oninput = loadInside;
+$('ex-plate').addEventListener('keydown', function (e) { if (e.key === 'Enter') bill(); });
+$('pay-day').value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+refresh(); loadInside();
+setInterval(function () {
+  refresh();
+  if (curTab === 'inside') loadInside();
+  if (curTab === 'events') loadEvents();
+}, 2000);
+</script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+*.bat -text
+*.vbs -text
+*.ps1 -text
+*.py text eol=lf

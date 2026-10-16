@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Белый список</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg: #f4f5f7; --card: #fff; --text: #1d1f23; --muted: #6b7280; --line: #e3e5e8; --acc: #1d4ed8; --bad: #b91c1c; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.4 -apple-system, "Segoe UI", Arial, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 20px; margin: 8px 0 16px; display: flex; justify-content: space-between; align-items: center; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  input { font: inherit; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; text-transform: uppercase; }
+  input[type=password], #login { text-transform: none; }
+  button { font: inherit; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; }
+  button.p { background: var(--acc); color: #fff; border-color: var(--acc); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row button { flex: 1; }
+  .err { color: var(--bad); min-height: 1.4em; }
+  .item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); gap: 8px; }
+  .item small { color: var(--muted); display: block; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <div id="login-box" class="card hidden">
+    <h1>Белый список · вход</h1>
+    <input id="login" placeholder="Логин" autocomplete="username">
+    <input id="password" type="password" placeholder="Пароль" autocomplete="current-password">
+    <button class="p" style="width:100%" onclick="login()">Войти</button>
+    <div class="err" id="login-err"></div>
+  </div>
+
+  <div id="app" class="hidden">
+    <h1>Белый список <button onclick="logout()">Выйти</button></h1>
+    <div class="card">
+      <input id="plate" placeholder="Номер машины, например 01KG123ABC" autocomplete="off">
+      <div class="row">
+        <button class="p" onclick="add('permanent')">Добавить постоянно</button>
+        <button class="p" onclick="add('month')">Добавить на 1 месяц</button>
+      </div>
+      <div class="err" id="add-err"></div>
+    </div>
+    <div class="card">
+      <input id="filter" placeholder="Поиск" oninput="render()">
+      <div id="list"></div>
+    </div>
+  </div>
+</main>
+<script>
+var rows = [];
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+  return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function api(path, data) {
+  return fetch(path, data ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) } : {})
+    .then(function (r) { return r.json().then(function (j) { if (r.status === 401 && j.error === 'auth') { show(false); throw new Error(''); }
+      if (!r.ok) throw new Error(j.error || r.status); return j; }); });
+}
+function show(authed) { $('login-box').classList.toggle('hidden', authed); $('app').classList.toggle('hidden', !authed); }
+function login() {
+  api('/api/login', { login: $('login').value.trim(), password: $('password').value })
+    .then(function () { $('password').value = ''; $('login-err').textContent = ''; load(); })
+    .catch(function (e) { $('login-err').textContent = e.message; });
+}
+function logout() { api('/api/logout', {}).then(function () { show(false); }); }
+function load() { api('/api/list').then(function (r) { rows = r; show(true); render(); }).catch(function () {}); }
+function fmt(s) { return s ? s.slice(8, 10) + '.' + s.slice(5, 7) + '.' + s.slice(0, 4) : ''; }
+function render() {
+  var f = $('filter').value.toUpperCase().replace(/\s/g, '');
+  var list = rows.filter(function (r) { return !f || r.plate.indexOf(f) >= 0; });
+  $('list').innerHTML = '<p style="color:var(--muted)">Всего: ' + rows.length + '</p>' + list.map(function (r) {
+    return '<div class="item"><div><b>' + esc(r.plate) + '</b><small>' +
+      (r.category === 'month' ? 'на месяц, до ' + fmt(r.expires) : 'постоянный') +
+      ' · ' + esc(r.added_by || '') + '</small></div>' +
+      '<button data-plate="' + esc(r.plate) + '" onclick="del(this.dataset.plate)">Удалить</button></div>';
+  }).join('');
+}
+function add(cat) {
+  var p = $('plate').value.trim();
+  if (!p) return;
+  api('/api/add', { plate: p, category: cat }).then(function () { $('plate').value = ''; $('add-err').textContent = ''; load(); })
+    .catch(function (e) { $('add-err').textContent = e.message; });
+}
+function del(p) { if (confirm('Удалить ' + p + ' из белого списка?')) api('/api/remove', { plate: p }).then(load); }
+$('password').addEventListener('keydown', function (e) { if (e.key === 'Enter') login(); });
+load();
+</script>
+</body>
+</html>

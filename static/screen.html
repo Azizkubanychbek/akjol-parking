@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Экран оплаты</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/static/qrcode.min.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff;
+    font-family: Arial, Helvetica, sans-serif; cursor: none; }
+  /* scale_x: растяжка по горизонтали под квадратный LED-экран */
+  #stage { position: absolute; top: 0; left: 0; height: 100vh; transform-origin: 0 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .stop { background: #c00000; }
+  .paid { background: #008a2e; }
+  .msg  { background: #b35c00; }
+  .qr   { background: #fff; color: #000; }
+  /* --w — ширина сцены до растяжки; текст не должен вылезать за край */
+  .big { font-size: min(22vh, calc(var(--w, 100vw) * 0.15)); font-weight: bold; line-height: 1; }
+  .mid { font-size: min(9vh, calc(var(--w, 100vw) * 0.08)); font-weight: bold; }
+  .small { font-size: min(5vh, calc(var(--w, 100vw) * 0.05)); }
+  #qrbox { background: #fff; padding: 1.5vh; display: flex; align-items: center; justify-content: center; }
+  #qrbox img, #qrbox canvas { display: block; height: 100%; width: auto; image-rendering: pixelated; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+var stage = document.getElementById('stage');
+var lastKey = '';
+var cfg = { scale_x: 1, qr_height_percent: 68 };
+
+function layout() {
+  var sx = cfg.scale_x || 1;
+  stage.style.width = (window.innerWidth / sx) + 'px';
+  stage.style.setProperty('--w', (window.innerWidth / sx) + 'px');
+  stage.style.transform = 'scaleX(' + sx + ')';
+}
+window.addEventListener('resize', layout);
+
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+  return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+function render(s) {
+  var key = JSON.stringify([s.state, s.id, s.amount, s.text, !!s.qr_image, s.qr_text, s.qr_error, s.receipt_qr]);
+  if (key === lastKey) return;
+  lastKey = key;
+  document.body.className = { stop: 'stop', paid: 'paid', message: 'msg', qr: 'qr' }[s.state] || 'stop';
+  if (s.state === 'paid') {
+    stage.innerHTML = '<div class="big">ОПЛАЧЕНО</div><div class="mid">' + esc(s.amount) + ' сом</div>' +
+      (s.receipt_qr ? '<div id="rq" style="background:#fff;padding:1vh;height:34vh;margin:1vh 0"></div><div class="small">Электронный чек</div>'
+                    : '<div class="small">Счастливого пути!</div>');
+    var rq = document.getElementById('rq');
+    if (rq && window.QRCode) {
+      var px = Math.round(window.innerHeight * 0.32);
+      new QRCode(rq, { text: s.receipt_qr, width: px, height: px, correctLevel: QRCode.CorrectLevel.L });
+    }
+  } else if (s.state === 'message') {
+    stage.innerHTML = '<div class="mid">' + esc(s.text) + '</div>';
+  } else if (s.state === 'qr') {
+    var h = cfg.qr_height_percent || 68;
+    var html = '<div class="mid">К оплате ' + esc(s.amount) + ' сом</div>';
+    if (s.qr_image || s.qr_text) {
+      html += '<div id="qrbox" style="height:' + h + 'vh"></div>';
+    } else if (s.megapay && !s.qr_error) {
+      html += '<div class="small">QR создаётся…</div>';
+    } else {
+      html += '<div class="small">Оплата картой или наличными у оператора</div>';
+    }
+    html += '<div class="small">' + esc(s.plate) + ' · ' + esc(s.duration) + '</div>';
+    stage.innerHTML = html;
+    var box = document.getElementById('qrbox');
+    if (box && s.qr_image) {
+      var img = new Image(); img.src = s.qr_image; box.appendChild(img);
+    } else if (box && s.qr_text && window.QRCode) {
+      var px = Math.round(window.innerHeight * h / 100);
+      new QRCode(box, { text: s.qr_text, width: px, height: px, correctLevel: QRCode.CorrectLevel.M });
+    }
+  } else {
+    stage.innerHTML = '<div class="big">СТОП</div>';
+  }
+}
+
+function tick() {
+  fetch('/api/screen', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (s) {
+    if (s.screen) {
+      var changed = s.screen.scale_x !== cfg.scale_x;
+      cfg = s.screen;
+      if (changed) layout();
+    }
+    render(s);
+  }).catch(function () { render({ state: 'stop' }); })
+    .then(function () { setTimeout(tick, 1000); });
+}
+layout();
+tick();
+</script>
+</body>
+</html>

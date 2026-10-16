@@ -1,0 +1,5 @@
+parking.db*
+__pycache__/
+whitelist2.txt
+logs/
+test.db*
